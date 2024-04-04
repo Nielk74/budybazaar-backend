@@ -1,0 +1,99 @@
+stages:
+  - install dependencies
+  - lint
+  - build
+  - test
+  - deploy
+
+.ci-back:
+  image: node
+  tags:
+    - docker
+  before_script:
+    - cd backendsqlite
+    - cp .env.ci .env
+
+.ci-back-write-cache:
+  extends: .ci-back
+  cache:
+    key: back-$CI_COMMIT_REF_SLUG
+    paths:
+      - backendsqlite/node_modules/
+    policy: push
+
+.ci-back-read-cache:
+  extends: .ci-back
+  cache:
+    key: back-$CI_COMMIT_REF_SLUG
+    paths:
+      - backendsqlite/node_modules/
+    policy: pull
+
+install back dependencies:
+  extends: .ci-back-write-cache
+  stage: install dependencies
+  script:
+    - npm ci --prefer-offline
+
+lint back:
+  extends: .ci-back-read-cache
+  stage: lint
+  script:
+    - npm run lint
+  needs:
+    - install back dependencies
+
+build back:
+  extends: .ci-back-read-cache
+  stage: build
+  script:
+    - npm run build
+  needs:
+    - install back dependencies
+
+test-unit back:
+  stage: test
+  extends: .ci-back-read-cache
+  script:
+    - npm run test:spec
+  needs:
+    - install back dependencies
+
+test-integ back:
+  stage: test
+  extends: .ci-back-read-cache
+  script:
+    - npm run test:integ
+  needs:
+    - install back dependencies
+
+test-e2e back:
+  stage: test
+  extends: .ci-back-read-cache
+  script:
+    - npm run test:e2e
+  needs:
+    - install back dependencies
+
+deploy back:
+  stage: deploy
+  extends: .ci-back-read-cache
+  tags:
+    - docker
+  variables:
+    SCALINGO_APP_NAME: bazaar # le nom de votre appli chez scalingo
+    SCALINGO_REGION: osc-fr1 # l'instance de scalingo sur laquelle votre appli est déployée
+    GIT_DEPTH: 0
+    PROJECT_DIR: backendsqlite # Le répertoire dans le dépôt où est le backend
+  image: ruby:3.1.3
+  script:
+    - cd ..
+    - gem install dpl --pre # gem est le gestionnaire de paquets pour Ruby
+    - curl -O https://cli-dl.scalingo.com/install && bash install # scalingo CLI est installé
+    - scalingo --app=$SCALINGO_APP_NAME env-set PROJECT_DIR=$PROJECT_DIR # Pour indiquer sur le dépôt distant où est le backend
+    - dpl --provider=scalingo --app=$SCALINGO_APP_NAME --api-token=$SCALINGO_API_TOKEN --region=$SCALINGO_REGION --branch=refs/heads/main
+  rules:
+    - if: ($CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH)
+      when: always
+    - when: never
+      allow_failure: true
