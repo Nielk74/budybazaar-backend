@@ -1,5 +1,5 @@
 # Use Node.js base image
-FROM node:latest
+FROM node:slim
 
 # Set the working directory in the container
 WORKDIR /app
@@ -13,9 +13,6 @@ RUN npm install
 # Copy the rest of the application code
 COPY . .
 
-# Run setup command
-RUN npm run setup
-
 # Run build command
 RUN npm run build
 
@@ -23,7 +20,7 @@ RUN npm run build
 ENV DB=bmttest.sqlite
 ENV PORT=3000
 ENV TOKENSECRET=BBBBBB
-ENV NODE_ENV=development
+ENV NODE_ENV=production
 
 # Expose the port the app runs on
 EXPOSE 3000
